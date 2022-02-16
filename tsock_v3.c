@@ -1,4 +1,4 @@
-/* librairie standard ... */
+  /* librairie standard ... */
 #include <stdlib.h>
 /* pour getopt */
 #include <unistd.h>
@@ -48,35 +48,41 @@ int longueur_nombre(int Nombre) {
   } 
   return lg;
 }
-void entete_message(int numero_message) {
-  if (numero_message < 99999){
-    int lg = 5-longueur_nombre(numero_message);
+void entete_message(int num_recepteur) {
+  if (num_recepteur < 99999){
+    int lg = 5-longueur_nombre(num_recepteur);
     int i;
     for (i=0;i<lg;i++){
       printf("-");
     }
-    printf("%d",numero_message);
+    printf("%d",num_recepteur);
   }
   else {
-    printf("Nombre de message a envoyer doit etre inferieur a 99999\n");
+    printf("le numero du recepteur doit etre inferieur a 99999\n");
     exit(1);
   }
 }
 
-void afficher_message(char *message, int lg_message, int nb_message){	
-	printf("[");
-	entete_message(nb_message);
-	afficher_chaine(message, lg_message);
-	printf("]\n");
+void message_identification(char *identification, int i,  int nb_message, int lg_message, int num_recepteur){
+	identification[0] = i;
+	identification[1] = nb_message;
+	identification[2] = lg_message;
+	identification[3] = num_recepteur;
+	}	
+
+void message_identification_bal(char* identification_bal, int nb_message){
+	int i;
+	for(i=0; i<nb_message; i++){
+		identification_bal[i]=0;
+	} 
 }
 
-int ouvrir_socket() {
-	int sock;
-  	if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
-    		printf("échec lors de la création du socket\n");
-    		exit(1);
-  	}
-	return sock;
+
+void afficher_message(char *message, int lg_message, int num_recepteur){	
+	printf("[");
+	entete_message(num_recepteur);
+	afficher_chaine(message, lg_message);
+	printf("]\n");
 }
 
 int ouvrir_socket_tcp() {
@@ -95,63 +101,7 @@ void fermer_socket(int sock) {
   	}
 }
   
-void puits_UDP (int port, int nb_message, int lg_message) {
-	int sock;
-	sock = ouvrir_socket();
-	struct sockaddr_in adr_local;
-	memset((char *)&adr_local, 0, sizeof(adr_local));
-	adr_local.sin_family = AF_INET;
-	adr_local.sin_port = htons(port);
-	adr_local.sin_addr.s_addr = INADDR_ANY; 
-	if(bind(sock, (struct sockaddr *)&adr_local, sizeof(adr_local)) == -1){
-		printf("Echec du bind\n");
-		exit(1);
-	}
-	char *message = malloc((sizeof(char))*lg_message);  
-	struct sockaddr padr_em;
-	unsigned int plg_adr=sizeof(struct sockaddr_in);
-	int i;
-	while (i<nb_message) {
-		i+=1;
-		if (recvfrom(sock, message, (sizeof(char))*lg_message, 0, &padr_em, &plg_adr) == -1){
-			printf("echec de reception 2\n");
-			exit(1);
-		}	
-		printf("PUIT : Reception n° %d (%d)",i, lg_message);
-		afficher_message(message, lg_message,i);
-	}
-	printf("PUIT : Fin de la reception\n");
-	fermer_socket(sock);
-}
-	
-void source_UDP(char *adresse, int port, int nb_message, int lg_message) {
-	int sock = ouvrir_socket();
-	struct hostent *hp = NULL;
-	struct sockaddr_in adr_distant;
-	memset((char *)&adr_distant, 0, sizeof(adr_distant));
-	adr_distant.sin_family = AF_INET; 
-	adr_distant.sin_port = htons(port); 
-	if ((hp = gethostbyname(adresse)) == NULL){
-		printf("Erreur gethostbyname\n");
-		exit(1);
-	}
-	memcpy((char*)&(adr_distant.sin_addr.s_addr), hp->h_addr, hp->h_length);
- 	char *message = malloc(lg_message*sizeof(char));
-	int i;
-	for (i=0;i<nb_message;i++) {
-	  construire_message(message, 65+(i%26),lg_message);
-		if (sendto(sock, message, lg_message, 0, (struct sockaddr *) &adr_distant, sizeof(adr_distant)) == -1){
-			printf("echec de l'envoi\n"); 
-			exit(1);
-		}
-		printf("SOURCE : Envoi n° %d (%d)",i+1, lg_message);
-		afficher_message(message, lg_message, i+1);
-  	}
-  	printf("SOURCE : Fin des envois!\n");
-	fermer_socket(sock);
-}
-
-void source_TCP(char *adresse, int port, int nb_message, int lg_message) {
+void emetteur(char *adresse, int port, int nb_message, int lg_message, int num_recepteur) {
 	int sock = ouvrir_socket_tcp();
 	struct hostent *hp = NULL;
 	struct sockaddr_in adr_distant;
@@ -167,12 +117,19 @@ void source_TCP(char *adresse, int port, int nb_message, int lg_message) {
 		perror("error connect \n");
 		exit(1);
 	}
+	char* identification = malloc(lg_message*sizeof(char));
+	message_identification(identification,1,nb_message,lg_message, num_recepteur);
+	if (write(sock, identification, 4) == -1){
+			perror("echec de l'envoi du messsage d'identification\n"); 
+			exit(1);
+		}
+
 	char *message = malloc(lg_message*sizeof(char));
 	int i;
 	for (i=0;i<nb_message;i++) {
 	  	construire_message(message, 65+(i%26),lg_message);
-		printf("SOURCE : Envoi n° %d (%d)",i+1, lg_message);
-		afficher_message(message, lg_message, i+1);
+		printf("Emetteur : envoi du message n° %d au recepteur n°%d",i+1, num_recepteur);
+		afficher_message(message, lg_message,num_recepteur);
 		if (write(sock, message, lg_message) == -1){
 			perror("echec de l'envoi\n"); 
 			exit(1);
@@ -185,7 +142,52 @@ void source_TCP(char *adresse, int port, int nb_message, int lg_message) {
 	free(message);
 }
 
-void puits_TCP (int port, int nb_message, int lg_message) {
+void recepteur (char *adresse, int port, int num_recepteur, int lg_message) {
+	int sock = ouvrir_socket_tcp();
+	struct hostent *hp = NULL;
+	struct sockaddr_in adr_distant;
+	memset((char *)&adr_distant, 0, sizeof(adr_distant));
+	adr_distant.sin_family = AF_INET; 
+	adr_distant.sin_port = htons(port); 
+	if ((hp = gethostbyname(adresse)) == NULL){
+		printf("Erreur gethostbyname\n");
+		exit(1);
+	}
+
+	memcpy((char*)&(adr_distant.sin_addr.s_addr), hp->h_addr, hp->h_length);
+	if (connect(sock,(struct sockaddr *)&adr_distant,sizeof(adr_distant)) == -1){
+		perror("error connect \n");
+		exit(1);
+	}
+
+	char* identification = malloc(sizeof(char));
+	message_identification(identification,0,0,0,num_recepteur);
+	if (write(sock, identification, 4) == -1){
+			perror("echec de l'envoi du messsage d'identification\n"); 
+			exit(1);
+		}
+
+	int nb_message;  
+	char *identification_bal = malloc((sizeof(1))); 
+	nb_message = read(sock,identification_bal,lg_message);
+	char *message = malloc((sizeof(char))*lg_message);
+	int i;
+	for (i=0; i<nb_message; i++){
+		if ((lg_message=read(sock, message, lg_message))<0){
+			printf("échec du read \n");
+			exit(1);
+			}
+		printf("Recepteur : Reception n° %d (%d)",i+1, lg_message);
+		afficher_message(message,lg_message, num_recepteur);
+		printf("\n");	
+			}
+	printf("Recepteur : Fin de la reception\n");
+	fermer_socket(sock);
+}	
+
+
+
+void BAL(int port) {
 	int sock, sock_bis;
 	int nb_max;
 	sock = ouvrir_socket_tcp();
@@ -200,43 +202,62 @@ void puits_TCP (int port, int nb_message, int lg_message) {
 	}
 	nb_max = 10;
 	listen(sock,nb_max);
-	char *message = malloc((sizeof(char))*lg_message);  
 	struct sockaddr *padr_em;
 	padr_em=malloc(sizeof(struct sockaddr));
 	int *plg_adr_em;
 	plg_adr_em=malloc(sizeof(int));
-
-	while (1){
 		if ((sock_bis = accept(sock,padr_em,plg_adr_em)) == -1)
 		{
 			printf("échec du accept \n");
 			exit(1);
 			}
-			switch(fork()){
-				case -1 :
-					printf("erreur fork \n");
-					exit(1);
-				case 0 :
-					close(sock);
-					int i;
-					for (i=0; i<nb_message; i++){
-						if ((lg_message=read(sock_bis, message, lg_message))<0){
+			char *identification = malloc((sizeof(4))); 
+			int lg_message_id;
+			if ((lg_message_id=read(sock_bis, identification, sizeof(4)))<0){
 							printf("échec du read \n");
 							exit(1);
 							}
-						printf("PUIT : Reception n° %d (%d)",i+1, lg_message);
-						afficher_message(message,lg_message,i+1);
-						printf("\n");
-						}
+						printf("BAL : Reception message identification");
+						int em_re=identification[0];
+						int nb_message=identification[1];
+						int lg_message=identification[2];
+						int num_recepteur=identification[3];	
+						printf("%d,%d,%d, %d \n", em_re,nb_message,lg_message,num_recepteur);
+	
+			char *message = malloc((sizeof(char))*lg_message);  
+			switch(em_re){
+				int i;
+				case -1 :
+					printf("erreur de source \n");
+					exit(1);
+				case 1 :					
+					for (i=0; i<nb_message; i++){
+						if ((read(sock_bis, message, lg_message))<0){
+							printf("échec du read \n");
+							exit(1);
+							}
+						printf("BAL : reception du message n° %d pour le recepteur n°%d",i+1, num_recepteur);
+						afficher_message(message,lg_message,num_recepteur);
+						int num_recepteur;
+						num_recepteur = message[4];
+						} 
 						exit(0);
-				default : 
-					close(sock_bis);
-				}		
-			}
-	printf("PUIT : Fin de la reception\n");
+				case 0 : 
+					printf(" ");
+					char* identification_bal = malloc(sizeof(char));
+					message_identification_bal(identification_bal,nb_message);
+					write(sock,message_identification_bal,sizeof(identification_bal));
+					exit(0);
 
+				default :
+					close(sock_bis);
+				}				
+	printf("BAL : Fermeture de la boite aux lettres\n");
 	fermer_socket(sock);
-	}	
+}	
+
+
+
 
 void main (int argc, char **argv)
 {
@@ -246,29 +267,22 @@ void main (int argc, char **argv)
 	extern int optind;
 	int nb_message = 10; /* Nb de messages à envoyer ou à recevoir, par défaut : 10 en émission, infini en réception */
 	int lg_message = 30; /* Longueur des messages à envoyer ou à recevoir, par défaut : 30 en émission et en réception */
-	int source = -1 ; /* 0=puits, 1=source */
+	int source = -1 ; /* 0=emetteur, 1=recepteur , 2=BAL*/
 	char * adresse;
 	int port;
-	int protocole=1; /* 1=TCP, 0=UDP */
-	char * protoUtilise;
+	int num_recepteur;
+
   
-  while ((c = getopt(argc, argv, "pun:l:s")) != -1) {
+  while ((c = getopt(argc, argv, "n:l:e:r:b")) != -1) {
     switch (c) {
-    case 'p':
-      if (source == 1) {
-	printf("usage: cmd [-p|-s][-n ##][-l##]\n");
-	exit(1);
-      }
+    case 'r':
       source = 0;
-   
+	  num_recepteur = atoi(optarg);
       break;
 
-    case 's':
-      if (source == 0) {
-	printf("usage: cmd [-p|-s][-n ##][-l##]\n");
-	exit(1) ;
-      }
+    case 'e':
       source = 1;
+	  num_recepteur = atoi(optarg);
       break;
 			
     case 'n':
@@ -278,14 +292,13 @@ void main (int argc, char **argv)
     case 'l':
       lg_message = atoi(optarg);   
       break;
-			
-    case 'u':
-      protocole=0;
-      break;
-		    	        
 
+	case 'b':
+      source = 2;
+      break;
+	
     default:
-      printf("usage: cmd [-p|-s][-n ##][-l##]\n");
+      printf("usage: cmd [-r|-e][-n ##][-l##]\n");
       break;
     }
   }
@@ -298,49 +311,26 @@ void main (int argc, char **argv)
 	
 	
 	switch (source) {
-	case 1:	
-		if (protocole==0){
-			protoUtilise = "UDP";
-			printf("SOURCE : lg_mesg_emis : %d, port : %d, nb_envois : %d, TP : %s, dest : %s \n",lg_message, port, nb_message, protoUtilise, adresse);
+	case 1:		
+			printf("SOURCE : lg_mesg_emis : %d, port : %d, nb_envois : %d, dest : %s \n",lg_message, port, nb_message, adresse);
 			break;
-		}	
-		
-		else{
-			protoUtilise = "TCP";	
-			printf("SOURCE : lg_mesg_emis : %d, port : %d, nb_envois : %d, TP : %s, dest : %s \n",lg_message, port, nb_message, protoUtilise, adresse);
-			break;
-		}
 
-	case 0:
-		if (protocole==0){
-			protoUtilise = "UDP";
-			printf("PUIT : lg_mesg_recu : %d, port : %d, nb_reception : %d, TP : %s\n",lg_message, port, nb_message, protoUtilise);
+	case 0:	
+			printf("PUIT : lg_mesg_recu : %d, port : %d, nb_reception : %d\n",lg_message, port, nb_message);
 			break;
-		}
-		else{
-			protoUtilise = "TCP";	
-			printf("PUIT : lg_mesg_recu : %d, port : %d, nb_reception : %d, TP : %s\n",lg_message, port, nb_message, protoUtilise);
+	case 2: 
+			printf("BAL : lg_mesg_recu : %d, port : %d, nb_reception : %d,\n",lg_message, port, nb_message);
 			break;
+	}
+
+
+	    if (source==1){
+	    	emetteur(adresse, port, nb_message, lg_message, num_recepteur);
+	    }
+	    if (source==0){
+	        recepteur(adresse, port, num_recepteur, lg_message);
+	    }
+		if (source==2){
+			BAL(port);
 		}
-	}
-	if (protocole == 0)
-	{
-	  {
-	    if (source){
-	      source_UDP(adresse, port, nb_message, lg_message);
-	    }
-	    else{
-	      puits_UDP(port, nb_message, lg_message);
-	    }
-	  }
-	}
-	else 
-	{
-	    if (source){
-	    source_TCP(adresse, port, nb_message, lg_message);
-	    }
-	    else{
-	      puits_TCP(port, nb_message, lg_message);
-	    }
-	}
 }
