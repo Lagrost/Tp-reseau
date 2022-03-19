@@ -21,12 +21,12 @@ données du réseau */
 
 
 #ifndef message_h
- #include "message.h"
+ #include "message.h" //GESTION DES MESSAGES ENVOYES ET DES MESSAGES D'IDENTIFICATION
 #endif
 
 
 #ifndef bal_h
- #include "bal.h"
+ #include "bal.h" //GESTION DES BOITES AUX LETTRES
 #endif 
 
 
@@ -70,7 +70,7 @@ void main (int argc, char **argv)
       break;
 	
     default:
-      printf("usage: cmd [-r|-e][-n ##][-l##]\n");
+      printf("usage: cmd [-r|-e|-b][-n ##][-l##][adresse][numéro de port]\n");
       break;
     }
   }
