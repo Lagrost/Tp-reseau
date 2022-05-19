@@ -297,7 +297,7 @@ void emetteur(char *adresse, int port, int nb_message, int lg_message, int num_r
 
 void recepteur (char *adresse, int port, int num_recepteur, int lg_message, int nb_message) {
 
-
+	int sock;
 	struct hostent *hp;
 	struct sockaddr_in adr_distant;
 	memset((char *)&adr_distant, 0, sizeof(adr_distant));  //Construction adresse socket distant
